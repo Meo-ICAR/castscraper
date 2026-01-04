@@ -18,11 +18,11 @@ Artisan::command('scrape:source {identifier}', function ($identifier) {
         : Source::where('name', $identifier)->first();
 
     if (! $source) {
-        $this->error('Source not found: ' . $identifier);
+        $this->error('Source not found: '.$identifier);
         return 1;
     }
 
     ScrapeSourceJob::dispatch($source->id);
-    $this->info('ScrapeSourceJob dispatched for source: ' . $source->id);
+    $this->info('ScrapeSourceJob dispatched for source: '.$source->id);
     return 0;
 })->describe('Dispatch a scrape job for the given source id or name');

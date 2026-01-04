@@ -64,11 +64,11 @@ class DownloadAttachmentJob implements ShouldQueue
                 $parts = explode('/', $mime);
                 $ext = end($parts);
             }
-            $filename = sha1($attachment->source_url) . ($ext ? ".{$ext}" : '');
+            $filename = sha1($attachment->source_url).($ext ? ".{$ext}" : '');
         }
 
         $dir = "listings/{$attachment->listing_id}";
-        $path = rtrim($dir, '/') . '/' . $filename;
+        $path = rtrim($dir, '/').'/'.$filename;
 
         try {
             Storage::disk('public')->put($path, $binary['contents']);

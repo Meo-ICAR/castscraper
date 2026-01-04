@@ -118,11 +118,45 @@ class AttoriCastingAdapter implements AdapterInterface
             $date = $time->attr('datetime') ?: $time->text();
         }
 
+        // Extract emails: prefer mailto links, fall back to regex over HTML/text
+        $emails = [];
+        try {
+            $crawler->filter('a[href^="mailto:"]')->each(function (Crawler $node) use (&$emails) {
+                $href = $node->attr('href');
+                if ($href) {
+                    $email = preg_replace('/^mailto:/i', '', $href);
+                    $email = trim($email);
+                    if (! empty($email)) {
+                        $emails[] = $email;
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // regex search in HTML for any emails
+        if (preg_match_all('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $html, $matches)) {
+            foreach ($matches[0] as $m) {
+                $emails[] = $m;
+            }
+        }
+
+        $emails = array_values(array_unique(array_map('trim', $emails)));
+
+        $extra = [];
+        if (! empty($emails)) {
+            $extra['emails'] = $emails;
+            // convenience: first contact email
+            $extra['contact_email'] = $emails[0];
+        }
+
         return [
             'title' => $title,
             'description' => $description,
             'date' => $date,
             'attachments' => $attachments,
+            'extra' => $extra,
         ];
     }
 
@@ -132,6 +166,6 @@ class AttoriCastingAdapter implements AdapterInterface
             return $url;
         }
 
-        return rtrim($base, '/') . '/' . ltrim($url, '/');
+        return rtrim($base, '/').'/'.ltrim($url, '/');
     }
 }
