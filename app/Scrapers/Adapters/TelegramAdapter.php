@@ -25,10 +25,8 @@ class TelegramAdapter implements AdapterInterface
                 return;
             }
 
-            $url = $source->base_url . '/' . str_replace($source->name . '/', '', $postId);
-            // Public preview URLs usually look like t.me/s/channel/123
-            // We want the clean link: t.me/channel/123
-            $cleanUrl = str_replace('/s/', '/', $url);
+            // data-post is usually "channel/123"
+            $url = 'https://t.me/' . $postId;
 
             $textNode = $node->filter('.tgme_widget_message_text');
             if ($textNode->count() === 0) {
@@ -44,7 +42,7 @@ class TelegramAdapter implements AdapterInterface
 
             $items[] = [
                 'external_id' => $postId,
-                'url' => $cleanUrl,
+                'url' => $url,
                 'title' => $title,
                 'description' => $fullText,
                 'date' => $date,

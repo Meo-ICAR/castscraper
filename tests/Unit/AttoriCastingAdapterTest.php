@@ -27,6 +27,9 @@ class AttoriCastingAdapterTest extends TestCase
         $this->assertArrayHasKey('attachments', $result);
         $this->assertNotEmpty($result['attachments']);
         $this->assertStringContainsString('/images/poster.jpg', $result['attachments'][0]);
+        
+        $this->assertArrayHasKey('cast_required', $result['extra']);
+        $this->assertStringContainsString('Stiamo cercando attori', $result['extra']['cast_required']);
     }
 
     public function test_parse_list_finds_listing_links(): void

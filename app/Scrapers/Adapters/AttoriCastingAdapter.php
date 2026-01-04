@@ -111,6 +111,16 @@ class AttoriCastingAdapter implements AdapterInterface
             }
         });
 
+        // Extract document links
+        $crawler->filter('a')->each(function (Crawler $node) use (&$attachments, $source) {
+            $href = $node->attr('href');
+            if ($href && preg_match('/\.(pdf|doc|docx|txt|rtf)$/i', $href)) {
+                $attachments[] = $this->absolutize($href, $source->base_url);
+            }
+        });
+
+        $extra = [];
+
         // meta date hints
         $date = null;
         if ($crawler->filter('time')->count()) {
@@ -144,7 +154,6 @@ class AttoriCastingAdapter implements AdapterInterface
 
         $emails = array_values(array_unique(array_map('trim', $emails)));
 
-        $extra = [];
         if (! empty($emails)) {
             $extra['emails'] = $emails;
             // convenience: first contact email

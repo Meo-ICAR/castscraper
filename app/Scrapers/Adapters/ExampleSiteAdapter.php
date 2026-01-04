@@ -53,6 +53,14 @@ class ExampleSiteAdapter implements AdapterInterface
             }
         });
 
+        // Extract document links
+        $crawler->filter('a')->each(function (Crawler $node) use (&$attachments, $source) {
+            $href = $node->attr('href');
+            if ($href && preg_match('/\.(pdf|doc|docx|txt|rtf)$/i', $href)) {
+                $attachments[] = $this->absolutize($href, $source->base_url);
+            }
+        });
+
         return [
             'title' => $title,
             'description' => $description,

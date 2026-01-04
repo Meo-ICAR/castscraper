@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Models\Listing;
 use App\Models\Source;
+use App\Models\ScrapingKeyword;
+use App\Models\Profession;
 use App\Scrapers\AdapterFactory;
 use App\Scrapers\Fetcher;
 use App\Scrapers\Parser;
@@ -14,6 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use App\Jobs\DownloadAttachmentJob;
 
 class ProcessListingJob implements ShouldQueue
@@ -67,12 +70,64 @@ class ProcessListingJob implements ShouldQueue
             }
         }
 
-        // Merge list-level and detail-level data (detail overrides)
-        $data = array_merge($this->item, $detail);
+        // Merge list-level and detail-level data (detail overrides, but keep list description if detail is empty)
+        $data = array_merge($this->item, array_filter($detail));
         $data['source_id'] = $source->id;
 
-        $data['title'] = Parser::normalizeText($data['title'] ?? null);
+        $data['title'] = Str::limit(Parser::normalizeText($data['title'] ?? null), 250);
         $data['description'] = Parser::normalizeText($data['description'] ?? null);
+
+        if (! isset($data['extra'])) {
+            $data['extra'] = [];
+        }
+
+        // Search for professions
+        if (! empty($data['description'])) {
+            $foundProfessions = [];
+            // Get all professions for searching
+            $professions = Profession::all();
+            foreach ($professions as $prof) {
+                // Case insensitive search
+                if (stripos($data['description'], $prof->title) !== false) {
+                    $foundProfessions[] = [
+                        'area' => $prof->area,
+                        'title' => $prof->title,
+                    ];
+                }
+            }
+            if (! empty($foundProfessions)) {
+                $data['extra']['professions'] = array_values($foundProfessions);
+            }
+        }
+
+        // If cast_required is not yet in extra, try to extract it from the description using DB keywords
+        if (empty($data['extra']['cast_required']) && ! empty($data['description'])) {
+            $castRequired = '';
+            $keywords = ScrapingKeyword::where('active', true)->pluck('keyword')->toArray();
+            
+            if (empty($keywords)) {
+                $keywords = ['Si cerca', 'Si cercano', 'Profili ricercati', 'Requisiti', 'Personaggi', 'Ruoli', 'Casting per', 'Stiamo cercando'];
+            }
+
+            $lines = explode("\n", $data['description']);
+            if (count($lines) === 1) {
+                $lines = explode(". ", $data['description']);
+            }
+
+            foreach ($lines as $line) {
+                $line = trim($line);
+                foreach ($keywords as $keyword) {
+                    if (stripos($line, $keyword) !== false && strlen($line) > 10) {
+                        $castRequired .= $line . "\n";
+                        break;
+                    }
+                }
+            }
+
+            if ($castRequired) {
+                $data['extra']['cast_required'] = trim($castRequired);
+            }
+        }
 
         // Attempt to parse date
         if (! empty($data['date'])) {
@@ -132,6 +187,32 @@ class ProcessListingJob implements ShouldQueue
             'raw_html' => $detailHtml,
             'extra' => $data['extra'] ?? null,
         ]);
+
+        // Create special attachment for cast_required text
+        if (! empty($data['extra']['cast_required'])) {
+            try {
+                $content = $data['extra']['cast_required'];
+                $filename = 'casting_requirements.txt';
+                $dir = "listings/{$listing->id}";
+                $path = "{$dir}/{$filename}";
+                
+                Storage::disk('public')->put($path, $content);
+                try {
+                    Storage::disk('public')->setVisibility($path, 'public');
+                } catch (\Throwable $e) {
+                    // ignore visibility errors
+                }
+                
+                $listing->attachments()->create([
+                    'source_url' => 'virtual://cast_required',
+                    'local_path' => $path,
+                    'mime' => 'text/plain',
+                    'size' => strlen($content),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('ProcessListingJob cast_required attachment save failed', ['err' => $e->getMessage()]);
+            }
+        }
 
         // Save attachments metadata and dispatch download jobs
         if (! empty($data['attachments']) && is_array($data['attachments'])) {
