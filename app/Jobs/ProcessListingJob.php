@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Listing;
 use App\Models\Source;
-use App\Scrapers\Adapters\ExampleSiteAdapter;
+use App\Scrapers\AdapterFactory;
 use App\Scrapers\Fetcher;
 use App\Scrapers\Parser;
 use Illuminate\Bus\Queueable;
@@ -38,8 +38,20 @@ class ProcessListingJob implements ShouldQueue
         }
 
         $fetcher = new Fetcher();
-        $adapterClass = $source->adapter_class ?: ExampleSiteAdapter::class;
-        $adapter = new $adapterClass();
+        $adapter = AdapterFactory::make($source);
+
+        // Check if listing already exists by external_id before fetching detail
+        if (! empty($this->item['external_id'])) {
+            $existing = Listing::where('source_id', $source->id)
+                ->where('external_id', $this->item['external_id'])
+                ->first();
+
+            if ($existing && $existing->scraped_at && $existing->scraped_at->gt(now()->subDays(1))) {
+                // Already scraped recently, just update timestamp
+                $existing->update(['scraped_at' => now()]);
+                return;
+            }
+        }
 
         $detailHtml = null;
         if (! empty($this->item['url'])) {
@@ -73,16 +85,18 @@ class ProcessListingJob implements ShouldQueue
         // Compute content hash
         $data['content_hash'] = Parser::contentHash($data);
 
-        // Dedupe by external_id if available, otherwise content_hash
-        $existing = null;
-        if (! empty($data['external_id'])) {
-            $existing = Listing::where('source_id', $source->id)
-                ->where('external_id', $data['external_id'])
-                ->first();
-        }
+        // Dedupe by external_id if available (already checked above, but might be new)
+        // or by content_hash
+        if (! isset($existing) || ! $existing) {
+            if (! empty($data['external_id'])) {
+                $existing = Listing::where('source_id', $source->id)
+                    ->where('external_id', $data['external_id'])
+                    ->first();
+            }
 
-        if (! $existing) {
-            $existing = Listing::where('content_hash', $data['content_hash'])->first();
+            if (! $existing) {
+                $existing = Listing::where('content_hash', $data['content_hash'])->first();
+            }
         }
 
         if ($existing) {

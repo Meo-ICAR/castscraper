@@ -160,6 +160,19 @@ class AttoriCastingAdapter implements AdapterInterface
         ];
     }
 
+    public function getNextPageUrl(string $html, string $currentUrl, Source $source): ?string
+    {
+        $crawler = new Crawler($html);
+
+        $next = $crawler->filter('a.next, a.next-page, a[rel="next"]');
+
+        if ($next->count()) {
+            return $this->absolutize($next->first()->attr('href'), $source->base_url);
+        }
+
+        return null;
+    }
+
     protected function absolutize(string $url, string $base): string
     {
         if (strpos($url, 'http') === 0) {

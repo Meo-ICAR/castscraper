@@ -35,7 +35,18 @@ class Parser
     public static function contentHash(array $data): string
     {
         // Use main fields to compute a stable hash
-        $seed = ($data['title'] ?? '').'|'.($data['company'] ?? '').'|'.($data['date_posted'] ?? '').'|'.($data['description'] ?? '');
+        $title = self::slugify($data['title'] ?? '');
+        $company = self::slugify($data['company'] ?? '');
+        $description = self::slugify($data['description'] ?? '');
+
+        $seed = "{$title}|{$company}|{$description}";
         return sha1($seed);
+    }
+
+    protected static function slugify(string $text): string
+    {
+        $text = strtolower($text);
+        $text = preg_replace('/[^a-z0-9]/', '', $text);
+        return $text;
     }
 }

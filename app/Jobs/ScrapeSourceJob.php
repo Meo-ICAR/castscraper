@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Source;
-use App\Scrapers\Adapters\ExampleSiteAdapter;
+use App\Scrapers\AdapterFactory;
 use App\Scrapers\Fetcher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,10 +17,16 @@ class ScrapeSourceJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $sourceId;
+    public int $maxPages;
+    public ?string $currentUrl;
+    public int $pageCount;
 
-    public function __construct(int $sourceId)
+    public function __construct(int $sourceId, int $maxPages = 1, ?string $currentUrl = null, int $pageCount = 1)
     {
         $this->sourceId = $sourceId;
+        $this->maxPages = $maxPages;
+        $this->currentUrl = $currentUrl;
+        $this->pageCount = $pageCount;
     }
 
     public function handle(): void
@@ -32,15 +38,17 @@ class ScrapeSourceJob implements ShouldQueue
         }
 
         $fetcher = new Fetcher();
+        $url = $this->currentUrl ?: ($source->list_url ?? $source->base_url);
 
-        $html = $fetcher->fetch($source->list_url ?? $source->base_url);
+        Log::info('Scraping source', ['source' => $source->name, 'url' => $url, 'page' => $this->pageCount]);
+
+        $html = $fetcher->fetch($url);
         if (is_null($html)) {
-            Log::warning('ScrapeSourceJob: empty html', ['source' => $source->id]);
+            Log::warning('ScrapeSourceJob: empty html', ['source' => $source->id, 'url' => $url]);
             return;
         }
 
-        $adapterClass = $source->adapter_class ?: ExampleSiteAdapter::class;
-        $adapter = new $adapterClass();
+        $adapter = AdapterFactory::make($source);
 
         try {
             $items = $adapter->parseList($html, $source);
@@ -56,6 +64,15 @@ class ScrapeSourceJob implements ShouldQueue
             }
 
             ProcessListingJob::dispatch($source->id, $item);
+        }
+
+        // Pagination
+        if ($this->pageCount < $this->maxPages) {
+            $nextUrl = $adapter->getNextPageUrl($html, $url, $source);
+            if ($nextUrl && $nextUrl !== $url) {
+                self::dispatch($this->sourceId, $this->maxPages, $nextUrl, $this->pageCount + 1)
+                    ->delay(now()->addSeconds(5)); // Add a small delay between pages
+            }
         }
     }
 }

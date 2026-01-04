@@ -25,4 +25,14 @@ interface AdapterInterface
      * @return array<string,mixed>
      */
     public function parseDetail(string $html, Source $source): array;
+
+    /**
+     * Determine if there is a next page and return its URL.
+     *
+     * @param string $html
+     * @param string $currentUrl
+     * @param Source $source
+     * @return string|null
+     */
+    public function getNextPageUrl(string $html, string $currentUrl, Source $source): ?string;
 }

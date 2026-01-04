@@ -60,6 +60,11 @@ class ExampleSiteAdapter implements AdapterInterface
         ];
     }
 
+    public function getNextPageUrl(string $html, string $currentUrl, Source $source): ?string
+    {
+        return null; // Not implemented for example
+    }
+
     protected function absolutize(string $url, string $base): string
     {
         if (strpos($url, 'http') === 0) {

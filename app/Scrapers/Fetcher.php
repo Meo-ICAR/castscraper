@@ -8,11 +8,27 @@ use Illuminate\Support\Str;
 
 class Fetcher
 {
-    protected array $defaultHeaders = [
-        'User-Agent' => 'CastScraper/1.0 (+https://example.com) PHP/'.PHP_VERSION,
-        'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language' => 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+    protected array $userAgents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
     ];
+
+    protected function getHeaders(): array
+    {
+        $headers = [
+            'User-Agent' => $this->userAgents[array_rand($this->userAgents)],
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language' => 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control' => 'no-cache',
+            'Pragma' => 'no-cache',
+        ];
+
+        return $headers;
+    }
 
     /**
      * Fetch the content for a given URL with simple retry/backoff.
@@ -23,9 +39,9 @@ class Fetcher
 
         while ($attempt <= $retries) {
             try {
-                $response = Http::withHeaders($this->defaultHeaders)
+                $response = Http::withHeaders($this->getHeaders())
                     ->timeout($timeout)
-                    ->withOptions(['verify' => true])
+                    ->withOptions(['verify' => true, 'allow_redirects' => true])
                     ->get($url);
 
                 if ($response->successful()) {
@@ -63,9 +79,9 @@ class Fetcher
 
         while ($attempt <= $retries) {
             try {
-                $response = Http::withHeaders($this->defaultHeaders)
+                $response = Http::withHeaders($this->getHeaders())
                     ->timeout($timeout)
-                    ->withOptions(['verify' => true])
+                    ->withOptions(['verify' => true, 'allow_redirects' => true])
                     ->get($url);
 
                 if ($response->successful()) {
